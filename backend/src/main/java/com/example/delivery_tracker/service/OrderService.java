@@ -37,7 +37,6 @@ public class OrderService {
     private UserRepository userRepository;
 
     public OrderPreviewResponseDto previewOrderCharges(OrderRequestDto request) {
-        // 1. Resolve zones from pincodes
         ZoneArea originArea = zoneAreaRepository.findByPincode(request.getOriginPincode())
                 .orElseThrow(() -> new IllegalArgumentException("Origin pincode not found in any zone: " + request.getOriginPincode()));
         ZoneArea destArea = zoneAreaRepository.findByPincode(request.getDestinationPincode())
@@ -46,24 +45,20 @@ public class OrderService {
         String originZone = originArea.getZone().getName();
         String destinationZone = destArea.getZone().getName();
 
-        // 2. Volumetric & Billable Weight
         BigDecimal volumetricWeight = rateCalculationService.calculateVolumetricWeight(
                 request.getLengthCm(), request.getBreadthCm(), request.getHeightCm());
         BigDecimal billableWeight = rateCalculationService.calculateBillableWeight(
                 request.getWeightKg(), volumetricWeight);
 
-        // 3. Rate Card Lookup
         RateCard rateCard = rateCardRepository.findByOriginZoneAndDestinationZoneAndOrderType(
                 originZone, destinationZone, request.getOrderType())
                 .orElseThrow(() -> new IllegalArgumentException("No rate card found for zone pair " + originZone + " -> " + destinationZone + " with type " + request.getOrderType()));
 
-        // 4. COD Surcharge Lookup
         CodSurcharge codSurcharge = null;
         if (request.isCod()) {
             codSurcharge = codSurchargeRepository.findByOrderType(request.getOrderType()).orElse(null);
         }
 
-        // 5. Compute Shipping Cost
         BigDecimal shippingCost = rateCalculationService.calculateShippingCost(
                 billableWeight, rateCard, request.isCod(), codSurcharge);
 
@@ -84,10 +79,8 @@ public class OrderService {
 
     @Transactional
     public Order confirmAndCreateOrder(OrderRequestDto request, String currentUsername, boolean isAdmin) {
-        // Preview charges to validate and compute exact costs
         OrderPreviewResponseDto preview = previewOrderCharges(request);
 
-        // Determine merchant/customer user
         User merchant;
         if (isAdmin && request.getCustomerId() != null) {
             merchant = userRepository.findById(request.getCustomerId())
@@ -104,6 +97,8 @@ public class OrderService {
                 .merchant(merchant)
                 .originPincode(request.getOriginPincode())
                 .destinationPincode(request.getDestinationPincode())
+                .originZone(preview.getOriginZone())
+                .destinationZone(preview.getDestinationZone())
                 .orderType(request.getOrderType())
                 .isCod(request.isCod())
                 .weightKg(request.getWeightKg())
@@ -115,7 +110,6 @@ public class OrderService {
 
         order = orderRepository.save(order);
 
-        // Append initial status history (immutable)
         OrderStatusHistory history = OrderStatusHistory.builder()
                 .order(order)
                 .status(Order.OrderStatus.CREATED)

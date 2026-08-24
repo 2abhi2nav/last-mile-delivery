@@ -32,8 +32,14 @@ public class Order {
     @Column(nullable = false)
     private String destinationPincode;
 
+    @Column(name = "origin_zone")
+    private String originZone;
+
+    @Column(name = "destination_zone")
+    private String destinationZone;
+
     @Column(nullable = false)
-    private String orderType; // STANDARD, EXPRESS
+    private String orderType;
 
     @Column(nullable = false)
     private boolean isCod;
