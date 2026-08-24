@@ -90,5 +90,5 @@ npm run dev
 
 ## Rate Calculation Formulae
 1. **Volumetric Weight**: $\frac{L \times B \times H}{5000}$ (dimensions in cm, result in kg).
-2. **Billable Weight**: $\max(\text{actual\_weight}, \text{volumetric\_weight})$.
+2. **Billable Weight**: $\max(\text{`actual_weight`}, \text{`volumetric_weight`})$.
 3. **Shipping Cost**: $\text{base\_rate} + (\text{billable\_weight} \times \text{per\_kg\_rate}) + [\text{cod\_surcharge}]$.
