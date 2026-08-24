@@ -1,5 +1,4 @@
 # Last-Mile Delivery Tracker & Logistics Platform
-
 A production-ready, full-stack Last-Mile Delivery Tracking and Logistics Management Platform built with **Spring Boot 3 (Java 21)**, **PostgreSQL**, **Spring Security (JWT RBAC)**, and **React (Vite)**.
 
 ---
@@ -8,10 +7,11 @@ A production-ready, full-stack Last-Mile Delivery Tracking and Logistics Managem
 - **Backend**: Spring Boot 3, Spring Web, Spring Data JPA / Hibernate, Spring Security (Stateless JWT), Flyway DB Migrations.
 - **Database**: PostgreSQL (Production/Docker), H2 (In-memory testing).
 - **Frontend**: React (Vite) decoupled REST client.
+- **Roles**: `CUSTOMER`, `DELIVERY_AGENT`, `ADMIN` — enforced via `@PreAuthorize` at the controller level.
 - **Key Design Principles**:
   - **Immutable Audit Trail**: `order_status_history` and `order_reschedules` are strictly append-only (`@Immutable`), ensuring zero history mutation.
-  - **Pure Rate Calculation Engine**: Isolated business logic for volumetric weight, billable weight tiebreaks, zone resolution, and COD surcharges.
-  - **Non-Blocking Event Hooks**: Status changes trigger email & SMS notification simulations asynchronously without blocking or rolling back primary transaction state.
+  - **Pure Rate Calculation Engine**: Isolated business logic for zone resolution, volumetric weight, billable weight tiebreaks, B2B/B2C rate card lookup, and COD surcharges — fully admin-configurable, no hardcoded values.
+  - **Non-Blocking Event Hooks**: Status changes trigger email & SMS notifications asynchronously (`REQUIRES_NEW`) without blocking or rolling back primary transaction state.
 
 ---
 
@@ -36,8 +36,8 @@ cd backend
 ```
 
 ### 3. Start Frontend
-```.bash
-cd frontend (or root)
+```bash
+cd frontend
 npm install
 npm run dev
 ```
@@ -47,29 +47,31 @@ npm run dev
 ## API Documentation & Endpoints
 
 ### Auth (`/api/auth`)
-- `POST /api/auth/signup` - Register user (Customer, Merchant, Agent, Admin)
+- `POST /api/auth/signup` - Register user (Customer, Delivery Agent, Admin)
 - `POST /api/auth/signin` - Authenticate and receive JWT token
 
 ### Admin Management (`/api/admin`)
 - `POST /api/admin/zones` - Create zone
 - `POST /api/admin/zone-areas` - Map pincode to zone
-- `POST /api/admin/rate-cards` - Create/update rate cards
+- `POST /api/admin/rate-cards` - Create/update rate cards (B2B/B2C, intra/inter-zone)
 - `POST /api/admin/cod-surcharges` - Configure COD surcharge per order type
+- `GET /api/admin/orders` - List all orders, filterable by `status`, `zone`, `agentId`
 
 ### Orders & Charge Preview (`/api/orders`)
-- `POST /api/orders/preview` - Calculate charge preview (volumetric weight, billable weight tiebreak, rate lookup, COD surcharge)
-- `POST /api/orders/confirm` - Persist order after customer acceptance
+- `POST /api/orders/preview` - Calculate charge preview (zone detection, volumetric weight, billable weight tiebreak, rate lookup, COD surcharge)
+- `POST /api/orders/confirm` - Persist order after customer acceptance (customer self-service or admin-on-behalf)
 - `GET /api/orders/{orderId}/timeline` - Fetch full immutable audit trail
-- `PATCH /api/orders/{orderId}/status/agent` - Agent status update
-- `PATCH /api/orders/{orderId}/status/override` - Admin status override
-- `POST /api/orders/{orderId}/fail` - Log failed delivery
-- `POST /api/orders/{orderId}/reschedule` - Reschedule delivery with new date/reason
+- `GET /api/orders/mine` - Customer's own order list with live status
+- `PATCH /api/orders/{orderId}/status/agent` - Agent status update (Picked Up / In Transit / Out for Delivery / Delivered)
+- `PATCH /api/orders/{orderId}/status/override` - Admin status override (any status, any order)
+- `POST /api/orders/{orderId}/fail` - Log failed delivery, triggers customer notification
+- `POST /api/orders/{orderId}/reschedule` - Reschedule delivery with new date/reason, triggers reassignment
 
 ### Agents & Assignment (`/api/agents`)
 - `POST /api/agents/{agentId}/location` - Update agent live GPS location
-- `PATCH /api/agents/{agentId}/availability` - Toggle agent availability (`available`/`busy`/`offline`)
+- `PATCH /api/agents/{agentId}/availability` - Toggle agent availability (`available` / `busy` / `offline`)
 - `POST /api/agents/assign/manual` - Admin manual agent assignment
-- `POST /api/agents/assign/auto/{orderId}` - Auto-assign nearest/available agent
+- `POST /api/agents/assign/auto/{orderId}` - Auto-assign nearest available agent by zone/proximity
 
 ---
 
@@ -77,7 +79,7 @@ npm run dev
 ```
 [users] 1 ---- * [orders]
 [zones] 1 ---- * [zone_areas (pincodes)]
-[rate_cards] (origin_zone, destination_zone, order_type)
+[rate_cards] (origin_zone, destination_zone, order_type: B2B/B2C)
 [cod_surcharges] (order_type)
 [agents] 1 ---- 1 [users]
 [agents] 1 ---- * [agent_locations]
@@ -88,7 +90,15 @@ npm run dev
 
 ---
 
-## Rate Calculation Formulae
-1. **Volumetric Weight**: $\frac{L \times B \times H}{5000}$ (dimensions in cm, result in kg).
-2. **Billable Weight**: $\max(\text{actual\_weight}, \text{volumetric\_weight})$.
-3. **Shipping Cost**: $\text{base\_rate} + (\text{billable\_weight} \times \text{per\_kg\_rate}) + [\text{cod\_surcharge}]$.
+## Rate Calculation Logic
+1. **Zone Detection**: pickup and drop pincodes are resolved to zones via `zone_areas`; intra-zone vs inter-zone is determined by whether the resolved zones match.
+2. **Volumetric Weight**: `(L × B × H) / 5000` (dimensions in cm, result in kg).
+3. **Billable Weight**: `max(actual_weight, volumetric_weight)`.
+4. **Rate Lookup**: the correct rate card (B2B or B2C) is selected by order type, then the intra/inter-zone rate is applied.
+5. **Shipping Cost**: `base_rate + (billable_weight × per_kg_rate) + cod_surcharge` (surcharge only if payment type is COD).
+6. The computed charge is returned as a preview and only persisted to an order once the customer confirms.
+
+---
+
+## Notifications
+Email and SMS are sent on every order status change via a non-blocking async hook (`REQUIRES_NEW` transaction boundary), so provider downtime never rolls back a status transition. Attempts are recorded in `notification_logs` for admin visibility.
