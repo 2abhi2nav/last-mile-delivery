@@ -2,59 +2,35 @@ package com.example.delivery_tracker.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.math.BigDecimal;
+import org.hibernate.annotations.Immutable;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "order_status_history")
+@Immutable
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Order {
+public class OrderStatusHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
-    private String trackingNumber;
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "merchant_id", nullable = false)
-    private User merchant;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_agent_id")
-    private Agent assignedAgent;
-
-    @Column(nullable = false)
-    private String originPincode;
-
-    @Column(nullable = false)
-    private String destinationPincode;
-
-    @Column(nullable = false)
-    private String orderType; // STANDARD, EXPRESS
-
-    @Column(nullable = false)
-    private boolean isCod;
-
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal weightKg;
-
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal volumetricWeightKg;
-
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal billableWeightKg;
-
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal shippingCost;
+    @JoinColumn(name = "order_id", nullable = false)
+    private Order order;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private OrderStatus currentStatus;
+    private Order.OrderStatus status;
 
-    public enum OrderStatus {
-        CREATED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, RETURNED
-    }
+    @Column(nullable = false)
+    private LocalDateTime timestamp;
+
+    @Column(nullable = false)
+    private Long actorId;
+
+    @Column(nullable = false)
+    private String actorRole;
 }

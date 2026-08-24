@@ -3,7 +3,6 @@ package com.example.delivery_tracker.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "cod_surcharges")

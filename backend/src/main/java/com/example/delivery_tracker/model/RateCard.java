@@ -22,7 +22,7 @@ public class RateCard {
     private String destinationZone;
 
     @Column(nullable = false)
-    private String orderType; // e.g., "STANDARD", "EXPRESS"
+    private String orderType;
 
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal baseRate;
