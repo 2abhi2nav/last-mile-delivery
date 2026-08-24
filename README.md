@@ -3,12 +3,6 @@ A production-ready, full-stack Last-Mile Delivery Tracking and Logistics Managem
 
 ---
 
-## Hosted Application
-- **Frontend**: `<vercel-deployment-url>`
-- **Backend API**: `<render-or-railway-deployment-url>`
-
----
-
 ## Architecture & Tech Stack
 - **Backend**: Spring Boot 3, Spring Web, Spring Data JPA / Hibernate, Spring Security (Stateless JWT), Flyway DB Migrations.
 - **Database**: PostgreSQL (Production/Docker), H2 (In-memory testing).
