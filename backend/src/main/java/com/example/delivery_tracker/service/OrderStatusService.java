@@ -30,6 +30,9 @@ public class OrderStatusService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private NotificationService notificationService;
+
     public List<OrderStatusHistory> getOrderTimeline(Long orderId, String username, boolean isAdmin) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
@@ -74,6 +77,13 @@ public class OrderStatusService {
                 .build();
         orderStatusHistoryRepository.save(history);
 
+        // Trigger non-blocking notification on status change hook
+        try {
+            notificationService.sendStatusChangeNotification(order, newStatus);
+        } catch (Exception e) {
+            // Non-blocking: swallow exception so notification failure never rolls back the status change
+        }
+
         return order;
     }
 
@@ -96,6 +106,13 @@ public class OrderStatusService {
                 .actorRole("ADMIN")
                 .build();
         orderStatusHistoryRepository.save(history);
+
+        // Trigger non-blocking notification on status change hook
+        try {
+            notificationService.sendStatusChangeNotification(order, newStatus);
+        } catch (Exception e) {
+            // Non-blocking
+        }
 
         return order;
     }
